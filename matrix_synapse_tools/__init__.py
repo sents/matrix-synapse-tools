@@ -1,19 +1,14 @@
 import re
 import time
 import json
-import sys
 
 import requests
 
 from copy import deepcopy
 from argparse import ArgumentParser
-from urllib.parse import urljoin
 from urllib.parse import quote as _quote
 
-from ldap3 import Connection
 from requests_toolbelt import sessions
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
 
 def quote(string):
@@ -44,12 +39,12 @@ class MConnection:
     endpoints = {
         "list_users": "/_synapse/admin/v2/users?from=0&guests=false",
         "query_user": "/_synapse/admin/v2/users/{user_id}",
+        "server_notice": "/_synapse/admin/v1/send_server_notice",
         "create_room": "/_matrix/client/r0/createRoom",
         "create_group": "/_matrix/client/r0/create_group",
         "groups_of_room": "/_matrix/client/r0/rooms/{room_id}/state/m.room.related_groups/",
         "rooms_to_group": "/_matrix/client/r0/groups/{group_id}/admin/rooms/{room_id}",
         "rooms_of_group": "/_matrix/client/r0/groups/{group_id}/rooms",
-        "server_notice": "/_synapse/admin/v1/send_server_notice",
     }
     username_regex = r"@(?P<username>[a-z0-9._=\-\/]+):"
 
@@ -261,11 +256,14 @@ def main():
     parser.add_argument(
         "-t", "--token", help="""Access token of an admin user""", default=None,
     )
-    subparsers = parser.add_subparsers(help="Actions on the synapse server")
+    subparsers = parser.add_subparsers(
+        help="Actions on the synapse server", required=True
+    )
     notice_parser = subparsers.add_parser("server_notice", help="Send a server notice",)
     notice_parser.add_argument("message", help="Message to send as server notice")
     notice_parser.add_argument(
-        "-u" "--users",
+        "--users",
+        "-u",
         help="""
     A comma separated list of full user ids;
     If ommited the message will be sent to all users on the server.""",
@@ -277,15 +275,17 @@ def main():
         with open(args.configfile, "r") as f:
             config = json.load(f)
     elif all((args.address, args.servername, args.token)):
-        config = {"server_address": args.address,
-                  "server_name": args.servername,
-                  "access_token": args.token}
+        config = {
+            "server_address": args.address,
+            "server_name": args.servername,
+            "access_token": args.token,
+        }
     else:
         raise MatrixSynapseToolsError(
             "Either specify config file or give address, servername and token"
         )
     matrix_connection = MConnection(
-        config["server_address"], ["server_name"], ["access_token"]
+        config["server_address"], config["server_name"], config["access_token"]
     )
     args.func(matrix_connection, args)
 

@@ -24,7 +24,7 @@ synapse homeserver admin a bit easier. Work in progress!
     packages=["matrix_synapse_tools"],
     entry_points={
         "console_scripts": [
-            "corporal-policy-ldap.py = matrix_synapse_tools.__init__:main"
+            "synapse_tools.py = matrix_synapse_tools.__init__:main"
         ]
     },
 )
