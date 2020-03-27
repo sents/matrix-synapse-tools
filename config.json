@@ -1,0 +1,32 @@
+{
+    "corporal":{
+	"schema_version": 1,
+	"flags": {
+	    "allowCustomUserDisplayNames": true,
+	    "allowCustomUserAvatars": true}
+    },
+    "user_defaults":{
+	"authType": "rest",
+	"authCredential": "http://localhost:8090"}
+    "user_mode": "existing",
+    "homeserver_domain_name": "matrix.domain.org",
+    "homeserver_api_endpoint": "http://localhost:8008",
+    "admin_auth_token": "<token_of_an_admin_user>",
+    "lookup_path": "/some/location/to/save/room_ids",
+    "ldap": {
+	"url": "ldaps://ldapserver.domain.org",
+	"binddn": "uid=admin,ou=People,dc=domain,dc=org",
+	"binddn_pw": "swordfish",
+	"filter": "(objectClass=posixAccount)",
+	"scope": "LEVEL",
+	"user_base": "ou=People,dc=domain,dc=org",
+	"user_id": "uid",
+	"user_displayName": "cn",
+	"group_base": "ou=Groups,dc=domain,dc=org",
+	"group_id": "cn",
+	"group_prefix": "pre_"
+    },
+    "rooms": ["room1", {"room_alias_name":"comm1room", "topic": "sometopic"}],
+    "communities": [{"ldap_id": "someuid", "name": "custom_name_for_community", "rooms": ["room1"], "room_visibility": "private"}],
+    "users": []
+}
