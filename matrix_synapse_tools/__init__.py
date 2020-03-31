@@ -31,7 +31,11 @@ class MatrixSynapseToolsError(Exception):
 
 class MatrixRequestError(Exception):
     def __init__(self, http_error, message):
-        super(MatrixRequestError, self).__init__(message)
+        error_message = http_error.response.json()["error"]
+        matrix_error_code = http_error.response.json()["errcode"]
+        super(MatrixRequestError, self).__init__(
+            message + f"; {matrix_error_code}: {error_message}"
+        )
         self.http_error = http_error
 
 
@@ -45,6 +49,7 @@ class MConnection:
         "groups_of_room": "/_matrix/client/r0/rooms/{room_id}/state/m.room.related_groups/",
         "rooms_to_group": "/_matrix/client/r0/groups/{group_id}/admin/rooms/{room_id}",
         "rooms_of_group": "/_matrix/client/r0/groups/{group_id}/rooms",
+        "room_power_levels": "/_matrix/client/r0/rooms/{room_id}/state/m.room.power_levels",
     }
     username_regex = r"@(?P<username>[a-z0-9._=\-\/]+):"
 
@@ -118,6 +123,9 @@ class MConnection:
 
     def group_id(self, groupname):
         return f"+{groupname}:{self.servername}"
+
+    def room_alias(self, roomname):
+        return f"#{roomname}:{self.servername}"
 
     def get_matrix_users(self):
         req = self._get(self.endpoints["list_users"], "Failed to fetch userlist.")
@@ -199,7 +207,7 @@ class MConnection:
                 group_id=quote(group_id), room_id=quote(room_id),
             ),
             "Failed to add room to group.",
-            headers={**self.auth_header, "Content-Type": "application/json",},
+            headers={"Content-Type": "application/json",},
             json={"m.visibility": {"type": visibility}},
         )
 
@@ -208,7 +216,7 @@ class MConnection:
             req = self._put(
                 self.endpoints["groups_of_room"].format(room_id=quote(room_id)),
                 "Failed to add group to room.",
-                headers={**self.auth_header, "Content-Type": "application/json",},
+                headers={"Content-Type": "application/json",},
                 json={"groups": old_groups + [group_id]},
             )
 
@@ -224,6 +232,26 @@ class MConnection:
                     "content": {"msgtype": "m.text", "body": message},
                 },
             )
+
+    def get_room_power_levels(self, room_id):
+        return self._get(
+            self.endpoints["room_power_levels"].format(room_id=quote(room_id)),
+            "Failed to get room power levels",
+        ).json()
+
+    def set_user_room_power_level(self, user_id, room_id, level):
+        power_levels = self.get_room_power_levels(room_id)
+        power_levels["users"][user_id] = level
+        self._put(
+            self.endpoints["room_power_levels"].format(room_id=quote(room_id)),
+            "Failed to update room power levels",
+            json=power_levels,
+        )
+
+
+def set_user_room_power_level(matrix_connection, args):
+    assert args.level <= 100, MatrixSynapseToolsError("Invalid Power Level")
+    matrix_connection.set_user_room_power_level(args.user, args.room, args.level)
 
 
 def send_notice(matrix_connection, args):
@@ -259,6 +287,7 @@ def main():
     subparsers = parser.add_subparsers(
         help="Actions on the synapse server", required=True
     )
+
     notice_parser = subparsers.add_parser("server_notice", help="Send a server notice",)
     notice_parser.add_argument("message", help="Message to send as server notice")
     notice_parser.add_argument(
@@ -270,6 +299,17 @@ def main():
         default=None,
     )
     notice_parser.set_defaults(func=send_notice)
+
+    power_level_parser = subparsers.add_parser(
+        "power_level", help="set room user power level"
+    )
+    power_level_parser.add_argument("user", help="fully qualified user_id")
+    power_level_parser.add_argument("room", help="room id, not alias")
+    power_level_parser.add_argument(
+        "level", type=int, help="Power Level from -100 to 100"
+    )
+    power_level_parser.set_defaults(func=set_user_room_power_level)
+
     args = parser.parse_args()
     if args.configfile:
         with open(args.configfile, "r") as f:
