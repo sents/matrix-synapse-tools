@@ -41,7 +41,7 @@ class MatrixRequestError(Exception):
 
 class MConnection:
     endpoints = {
-        "list_users": "/_synapse/admin/v2/users?from=0&guests=false",
+        "list_users": "/_synapse/admin/v2/users?from={from_user}&limit={limit}&guests=false",
         "query_user": "/_synapse/admin/v2/users/{user_id}",
         "server_notice": "/_synapse/admin/v1/send_server_notice",
         "create_room": "/_matrix/client/r0/createRoom",
@@ -127,26 +127,29 @@ class MConnection:
     def room_alias(self, roomname):
         return f"#{roomname}:{self.servername}"
 
-    def get_matrix_users(self):
-        req = self._get(self.endpoints["list_users"], "Failed to fetch userlist.")
-        user_ids = [
-            userdic["name"]
-            for userdic in req.json()["users"]
-            if not userdic["deactivated"]
-        ]
+    def get_matrix_users(self, limit=100):
         users = []
-        for user_id in user_ids:
-            match = self.user_regex.search(user_id)
-            if match:
-                users.append(match.group("username"))
-        return users
+        from_value = 0
+        while True:
+            req = self._get(
+                self.endpoints["list_users"].format(from_user=from_value, limit=limit),
+                "Failed to fetch userlist.",
+            )
+            from_value += limit
+            user_ids = [
+                userdic["name"]
+                for userdic in req.json()["users"]
+                if not userdic["deactivated"]
+            ]
 
-    def query_matrix_user(self, user_id):
-        req = self._get(
-            self.endpoints["query_user"].format(user_id=quote(user_id)),
-            "Failed to query user.",
-        )
-        return req.json()
+            for user_id in user_ids:
+                match = self.user_regex.search(user_id)
+                if match:
+                    users.append(match.group("username"))
+
+            if not req.json().get("next_token"):
+                break
+        return users
 
     def last_seen_user(self, user_id):
         query = self.query_matrix_user(user_id)
