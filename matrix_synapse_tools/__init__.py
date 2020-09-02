@@ -255,7 +255,11 @@ def set_user_room_power_level(matrix_connection, args):
 
 
 def send_notice(matrix_connection, args):
-    matrix_connection.send_server_notice(args.message, user_ids=args.users)
+    if args.users is not None:
+        users = [user.strip() for user in args.users.split(",") if user]
+    else:
+        users = None
+    matrix_connection.send_server_notice(args.message, user_ids=users)
 
 
 def main():
